@@ -1,6 +1,7 @@
 import FluentSQLite
 import Vapor
 
+import FluentMySQL
 /// A single entry of a Todo list.
 final class Todo: SQLiteModel {
     /// The unique identifier for this `Todo`.
@@ -24,3 +25,4 @@ extension Todo: Content { }
 
 /// Allows `Todo` to be used as a dynamic parameter in route definitions.
 extension Todo: Parameter { }
+

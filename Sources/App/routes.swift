@@ -1,20 +1,50 @@
 import Vapor
+import Console
+//import Authentication
 /// Register your application's routes here.
 public func routes(_ router: Router) throws {
     // Basic "It works" example
     router.get { req in
+        
         return "It works!"
     }
     
+    let users = router.grouped("user")
+    // Adding "user/auth/" route to router.
+    users.get("auth") { req   in return "ok"}
+    // adding "user/profile/" route to router
+    users.get("profile") { req  in return "ok"}
+    
+    
+    router.group("user") { users in
+        // Adding "user/auth/" route to router.
+        users.get("auth") { req  in
+            return "ok"}
+        // adding "user/profile/" route to router
+        users.get("profile"){ req   in return "ok"}
+    }
+    //    get :  /v1/homePage
+    router.group("v1") { (group) in
+        group.get("homePage", use: { (req) -> String in
+            return "ok"
+        })
+    }
     // Basic "Hello, world!" example
     router.get("hello") { req in
         return "Hello, world!"
     }
+    
+    let studyMoudle = StudyController()
+    router.get("console-input", use: studyMoudle.testCrypto)
     //http://localhost:8080/users/222
-    router.get("users", Int.parameter) { req -> String in
-        let id = try req.parameters.next(Int.self)
-        return "requested id #\(id)"
-    }
+    router.get("users", Int.parameter, use : studyMoudle.handleGetRequest)
+    router.post( DDRequestModel.self, at:"hhhh",use :studyMoudle.handlePostRequest)
+    router.get("getUrlsOfJD", use: studyMoudle.getUrlsOfJD)
+    
+    
+    
+    
+    
     //不带参数的post
     router.post("ssss") { (request) -> String in
         return  "returnnnnn"
@@ -23,6 +53,8 @@ public func routes(_ router: Router) throws {
     //final url  =  "http://localhost:8080/testpost";
     //await Dio().post(url , data: {"title":"金瓶子","id":2});
     router.post([String:String].self, at: "testpost") { (request, string) -> String in
+        
+        print("print body :::: \(2)")
         print(string)
         return string["ss"]! + "   haha"
     }
@@ -38,6 +70,8 @@ public func routes(_ router: Router) throws {
     //await Dio().post(url , data: {"title":"金瓶子","id":2});
     let bc = BookController()
     router.post(Book.self, at: "saveBook", use: bc.saveBook )
+    router.get("books" , Int.parameter, use: bc.getBooks)
+    router.get("book" , Int.parameter, use: bc.getBook)
 
     router.get("savebook") { (req) -> String in
         //        BookController.test(req)

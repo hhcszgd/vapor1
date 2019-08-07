@@ -39,6 +39,8 @@ extension Book: MySQLMigration {
     static func revert(on conn: Database.Connection) -> Future<Void> {
         return Database.delete(Book.self , on: conn)
     }
+    
+    
 }
 
 /// Allows `Todo` to be encoded to and decoded from HTTP messages.
@@ -46,3 +48,52 @@ extension Book: Content { }
 
 /// Allows `Todo` to be used as a dynamic parameter in route definitions.
 extension Book: Parameter { }
+
+protocol GrandProtocol {
+    associatedtype ExpectType : Codable
+    func printt(codable : ExpectType) -> ExpectType
+}
+
+class TypeA : GrandProtocol{
+    typealias TypeAExpectType = String//just confirm codable
+    func printt(codable: TypeAExpectType) -> TypeAExpectType {
+        return "value to be return"
+    }
+}
+
+
+class TypeZ : Decodable , Encodable {}
+protocol SubProtocolCertainExpectType : GrandProtocol where ExpectType == TypeZ {}
+
+class TypeC  : SubProtocolCertainExpectType{
+    typealias TypeCExpectType = TypeZ //must be TypeZ
+    func printt(codable : TypeCExpectType) -> TypeCExpectType{
+        return TypeZ()
+    }
+}
+
+
+protocol SubProtocolWhichExpectTypeIskindOfTypeZWhichConfirmCodable : GrandProtocol where ExpectType : TypeZ {}
+class SubTypeZ: TypeZ {
+    
+}
+class TypeD  : SubProtocolWhichExpectTypeIskindOfTypeZWhichConfirmCodable{
+    typealias TypeDExpectType = SubTypeZ//should be TypeZWhichConfirmCodable or sub class of TypeZWhichConfirmCodable
+    func printt(codable : TypeDExpectType) -> TypeDExpectType{
+        return SubTypeZ()
+    }
+}
+
+
+
+protocol RestrainPropertyType {
+    associatedtype ExceptType : Codable
+}
+class SomeType: RestrainPropertyType {
+    typealias ExceptType = String
+    var property : ExceptType?
+}
+func usage()  {
+    let resultOf =  SomeType().property?.count
+    print(resultOf)
+}

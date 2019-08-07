@@ -58,8 +58,11 @@ public func configure(_ config: inout Config, _ env: inout Environment, _ servic
 //        capabilities: <#T##MySQLCapabilities#>,
 //        characterSet: MySQLCharacterSet.utf8_general_ci,
         transport: MySQLTransportConfig.unverifiedTLS)
+    
     let mysql = MySQLDatabase(config: mysqlConfig)
     databases.add(database: mysql , as: .mysql)
+    // Enable logging on the MySQL database
+    databases.enableLogging(on: DatabaseIdentifier<MySQLDatabase>.mysql)
     services.register(databases)
     // Configure migrations
     var migrations = MigrationConfig()

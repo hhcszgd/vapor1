@@ -14,10 +14,12 @@ let package = Package(
         .package(url: "https://github.com/vapor/fluent-sqlite.git", from: "3.0.0"),
         
         .package(url: "https://github.com/vapor/fluent-mysql.git", from: "3.0.0"),
-        .package(url: "https://github.com/vapor/crypto.git", from: "3.0.0")
+        .package(url: "https://github.com/vapor/crypto.git", from: "3.0.0"),
+        .package(url: "https://github.com/vapor/auth.git", from: "2.0.0"),
+        .package(url: "https://github.com/vapor/console.git", from: "3.0.0")
     ],
     targets: [
-        .target(name: "App", dependencies: ["FluentSQLite", "Vapor", "FluentMySQL", "Crypto"]),
+        .target(name: "App", dependencies: ["FluentSQLite", "Vapor", "FluentMySQL", "Crypto","Authentication","Console"]),
         .target(name: "Run", dependencies: ["App"]),
         .testTarget(name: "AppTests", dependencies: ["App"])
     ]

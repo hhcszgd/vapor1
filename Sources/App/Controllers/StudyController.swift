@@ -7,18 +7,48 @@
 
 import Vapor
 class StudyController {
-
+    func ttsts(_ req : Response) {
+        let name: Future<String?> = try req.content["user", "name"]
+        try? req.content.decode(json: String.self, using: JSONDecoder.custom())
+    }
     func handlePostRequest(_ req : Request ,_ para: DDRequestModel) -> DDRequestModel {
         return para
     }
    
     func handleGetRequest(_ req : Request) -> String {
+//        req.fileio()
+//        Request.fi
         let id = try?   req.parameters.next(Int.self)
         return "requested id #\(id ?? 0)"
     }
-    func ttt()  {
-    
-         Abort(.badRequest, reason: "Could not get data from external API.")
+    func testRouterParameters(_ req : Request)  throws ->  EventLoopFuture<Response>{
+        print( req.query)
+        let post = try req.parameters.next(Book.self)
+        post.map { (b ) in
+            print(b.title)
+        }
+//        let ids = req.parameters.rawValues(for: Int.self)
+//        print(ids) // [String]
+        let bk = Book(id: 333, title: "sss")
+       return try bk.encode(for: req)
+    }
+    func testCustomResponse(_ req : Request)  throws ->  EventLoopFuture<Response>{
+//        let response = req.response(http: HTTPResponse.init(status: HTTPResponseStatus.notFound))
+        
+        let responseBody = ["message":"some thing wrong","status":"200","data":"this is data"]
+        let bk = Book(id: 333, title: "sss")
+        //自定义body的方式1(好简单)
+//        return try responseBody.encode(for: req)
+        //自定义body的方式2
+        let jsonData = try? JSONEncoder().encode(bk)
+        let json = String(data: jsonData ?? Data(), encoding: String.Encoding.utf8)
+        let response = req.response(http: HTTPResponse.init(status: HTTPResponseStatus.notFound ,body:HTTPBody(string: json ?? "nono")) )
+        let futureResponse = req.eventLoop.newSucceededFuture(result: response)
+        return futureResponse
+        //自定义body方式3
+        
+        
+//         Abort(.badRequest, reason: "Could not get data from external API.")
     }
     func testCrypto( _  req:Request)  -> String {
         let terminal = Terminal()

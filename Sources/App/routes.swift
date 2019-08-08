@@ -5,10 +5,29 @@ import Console
 public func routes(_ router: Router) throws {
     // Basic "It works" example
     router.get { req in
-        
+
         return "It works!"
     }
     
+//    Creates a sub Router wrapped in the supplied middleware function.
+    let group = router.grouped { req, next in
+        // this closure will be called with each request
+        //Middleware is placed between the server and your router. It is capable of mutating both incoming requests and outgoing responses.
+        print(req.http.headers["Host"])
+        print(req)
+//        req.ma
+//        next.makeResponder
+        // use next responder in chain to respond
+        return try next.respond(to: req)
+    }
+    //get : http://localhost:8080/testGroupedAndMiddleware
+    group.get("testGroupedAndMiddleware") {req  in
+        return "xxxx"
+    }
+//    router.grouped { (request, responder) -> EventLoopFuture<Response> in
+//
+//        return try responder.respond(to: request)
+//    }
     let users = router.grouped("user")
     // Adding "user/auth/" route to router.
     users.get("auth") { req   in return "ok"}
@@ -33,15 +52,14 @@ public func routes(_ router: Router) throws {
     router.get("hello") { req in
         return "Hello, world!"
     }
-    
     let studyMoudle = StudyController()
     router.get("console-input", use: studyMoudle.testCrypto)
     //http://localhost:8080/users/222
     router.get("users", Int.parameter, use : studyMoudle.handleGetRequest)
     router.post( DDRequestModel.self, at:"hhhh",use :studyMoudle.handlePostRequest)
     router.get("getUrlsOfJD", use: studyMoudle.getUrlsOfJD)
-    
-    
+    router.get("testCustomResponse", use: studyMoudle.testCustomResponse)
+    router.get("testRouterParameters",Int.parameter, use: studyMoudle.testRouterParameters)
     
     
     
@@ -193,5 +211,4 @@ extension MyObject1 : Parameter {//遵守Parameter协议,需要实现方法
         })
     }
 }
-
 

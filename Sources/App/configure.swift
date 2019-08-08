@@ -5,7 +5,12 @@ import FluentMySQL
 public func configure(_ config: inout Config, _ env: inout Environment, _ services: inout Services) throws {
     // Register providers first
     try services.register(FluentSQLiteProvider())
-
+//    //使媒体类型支持XML
+//    var contentConfig = ContentConfig()
+//    contentConfig.use(encoder: JSONEncoder(), for: .xml)
+//    services.register(contentConfig)
+    
+    
     // Register routes to the router
     let router = EngineRouter.default()
     try routes(router)

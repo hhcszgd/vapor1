@@ -58,6 +58,7 @@ public func routes(_ router: Router) throws {
     router.get("users", Int.parameter, use : studyMoudle.handleGetRequest)
     router.post( DDRequestModel.self, at:"hhhh",use :studyMoudle.handlePostRequest)
     router.get("getUrlsOfJD", use: studyMoudle.getUrlsOfJD)
+    router.get("getUrlsOfJD1", use: studyMoudle.getUrlsOfJD1)
     router.get("testCustomResponse", use: studyMoudle.testCustomResponse)
     router.get("testRouterParameters",Int.parameter, use: studyMoudle.testRouterParameters)
     

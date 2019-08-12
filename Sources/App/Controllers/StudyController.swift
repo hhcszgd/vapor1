@@ -79,51 +79,45 @@ class StudyController {
 
 extension StudyController{
     func getUrlsOfJD1(_ req : Request)  throws   -> EventLoopFuture<Response> {
-        let url = "http://www.jd.com"
-        let result = try? req.client().get(url)
-        
-        let result2 = result?.map({ (rep) -> (Response) in
-            print("..................85...................")
-            let bodyyy = rep.http.body
-            if let data = bodyyy.data{
+        let mainUrl = "http://www.jd.com"
+        let mainUrlFutureResponseWithHtml = try? req.client().get(mainUrl)
+        let mainUrlFutureResponseWithSubUrls = mainUrlFutureResponseWithHtml?.map({ (rep) -> (Response) in//第一个map为了获取http://www.jd.com主链接页面的所有子链接,链接放在rep.http.body中
+            let mainResponseBody = rep.http.body
+            if let data = mainResponseBody.data{
                 var bodyString  = String(data: data, encoding: String.Encoding.utf8) ?? "空空空"
                 let pattern = "(https://yp.jd.com/\\w+.html)"
                 let goodsPattern = "(https://item.jd.com/\\w+.html)"
                 let reg = try? NSRegularExpression(pattern: "(href=\"//[\\w.&;\\#]+\">)", options: [NSRegularExpression.Options.allowCommentsAndWhitespace,NSRegularExpression.Options.caseInsensitive])
-                //                bodyString = "https://yp.jd.com/737684bb8e2dce70341.html"
                 let arr = reg?.matches(in: bodyString, options: NSRegularExpression.MatchingOptions.init(rawValue: 0), range: NSMakeRange(0, bodyString.count))
-                var urlss = [String]()
+                var subUrls = [String]()
                 for i in arr ?? []{
                     //                    print(i.range)
-                    var uurl = NSString(string: bodyString).substring(with:
+                    var subUrl = NSString(string: bodyString).substring(with:
                         i.range)
-                    uurl = uurl.replacingOccurrences(of: "&#47;", with: "/") ;
-                    uurl = uurl.replacingOccurrences(of: "&#47", with: "/") ;
-                    uurl = uurl.replacingOccurrences(of: "href=\"", with: "https:")
-                    uurl = uurl.replacingOccurrences(of: ";\">", with: "")
-                    uurl = uurl.replacingOccurrences(of: "\">", with: "")
-                    urlss.append(uurl)
+                    subUrl = subUrl.replacingOccurrences(of: "&#47;", with: "/") ;
+                    subUrl = subUrl.replacingOccurrences(of: "&#47", with: "/") ;
+                    subUrl = subUrl.replacingOccurrences(of: "href=\"", with: "https:")
+                    subUrl = subUrl.replacingOccurrences(of: ";\">", with: "")
+                    subUrl = subUrl.replacingOccurrences(of: "\">", with: "")
+                    subUrls.append(subUrl)
                 }
-                let urlssData = (try? JSONEncoder().encode(urlss)) ?? Data()
+                let urlssData = (try? JSONEncoder().encode(subUrls)) ?? Data()
                 return Response(http: HTTPResponse(status: HTTPResponseStatus.ok, body:  HTTPBody(data: urlssData)), using: req)
             }
-            print("...................115..................")
             return Response(http: HTTPResponse(status: HTTPResponseStatus.ok, body:  HTTPBody(string: "errorrrr ")), using: req)
         })
-            .flatMap({ (rep) -> EventLoopFuture<Response> in
-                
-//                return Response(http: HTTPResponse(status: HTTPResponseStatus.ok, body:  HTTPBody(string:"xxxxii")), using: req)/////
+        let subUrlFutureResponsesWithSubSubUrls = mainUrlFutureResponseWithSubUrls?.flatMap({ (rep) -> EventLoopFuture<Response> in//第二个map是为了拿出第一个map出的子链接数据,再分别进行get请求获取子页面的所有子页面
                 var targetUrls = Set<String>()
-                let dd = rep.http.body.data ?? Data()
-                var resp = Response(using: req)
-                let urls = ( try? JSONDecoder().decode([String].self, from: dd) ) ?? []
-
+                let urlsData = rep.http.body.data ?? Data()//从上一个get请求后得到的response解析出url数组
+                let urls = ( try? JSONDecoder().decode([String].self, from: urlsData) ) ?? []
                 ////
-                var futureResponse :[Future<Response>] = []
+                //1定义一个[Future<Response>] 的数组，即第二步中save()的返回类型。
+                var futureResponseArr :[Future<Response>] = []
+                //2 循环遍历urls数组中的每个链接再进行get请求，并将req.client().get(url)的返回值Future<Response>添加到futureResponse数组中。
                 for url in urls {
                     //wait 不能再事件循环里调用,要再子线程里调用,比如.globall里
-                    let result = try? req.client().get(url)
-                    let p = result?.map({ (rep) -> Response in
+                    let subFutureResponseStep1 = try? req.client().get(url)
+                    let subFutureResponseStep2 = subFutureResponseStep1?.map({ (rep) -> Response in
                         print(".....................................")
                         let bodyyy = rep.http.body
                         if let data = bodyyy.data{
@@ -151,142 +145,30 @@ extension StudyController{
                         }
                         
                         let urlssData = (try? JSONEncoder().encode(Array(targetUrls))) ?? Data()
-                        resp = Response(http: HTTPResponse(status: HTTPResponseStatus.ok, body:  HTTPBody(data: urlssData)), using: req)
+                        
+                        let resp  = Response(http: HTTPResponse(status: HTTPResponseStatus.ok, body:  HTTPBody(data: urlssData)), using: req)
                         return resp
                     })
-                    futureResponse.append(p!)
-//                    return p!
+                    futureResponseArr.append(subFutureResponseStep2!)
                 }
-                let ax = futureResponse.flatten(on: req)
-                let bx = ax.map({ (respArr) -> (Response) in
-                    let ae = respArr.map({ (rep) -> String in
-                        return rep.http.body.description
-                    }).description
-                    return Response(http: HTTPResponse(status: HTTPResponseStatus.ok, body:  HTTPBody(string: ae)), using: req)
-                    
-//                    return
+                //3 使用flatten(on :)等待所有future完成。 这需要一个Worker，即实际执行任务的线程。 worker通常是Vapor中的请求。 如果需要，flatten(on :)的闭包将返回的collection作为参数。
+                let futureWithResponseArr = futureResponseArr.flatten(on: req)
+                //4 返回Response
+                let finalFutureResponse = futureWithResponseArr.map({ (respArr) -> (Response) in
+                    let subsubUrls = respArr.map({ (rep) -> String in
+                        let bodyStr = String(data: rep.http.body.data ?? Data(), encoding: String.Encoding.utf8) ?? ""
+                        return (bodyStr + """
+                                                         huan hang
+                            """)
+                    })
+                    let jsonData = (try? JSONEncoder().encode(subsubUrls) ) ?? Data()
+                    let jsonStr = String(data: jsonData, encoding: String.Encoding.utf8) ?? ""
+                    return Response(http: HTTPResponse(status: HTTPResponseStatus.ok, body:  HTTPBody(string: jsonStr )), using: req)
                 })
-                return bx
-                //////
-                })
-
-//            .flatMap({ (rep) -> EventLoopFuture<Response> in
-//                return try "xxxxx2".encode(for: req)
-//            })
-//            .map({ (rep) -> Response in
-//
-//                return Response(http: HTTPResponse(status: HTTPResponseStatus.ok, body:  HTTPBody(string:"xxxxii")), using: req)/////
-//            var targetUrls = Set<String>()
-//            let dd = rep.http.body.data ?? Data()
-//            var resp = Response(using: req)
-//            let urls = ( try? JSONDecoder().decode([String].self, from: dd) ) ?? []
-//                for url in urls {
-//                    //wait 不能再事件循环里调用,要再子线程里调用,比如.globall里
-//                    let result = try? req.client().get(url)
-//                    let p = result?.map({ (rep) -> Response in
-//                        print(".....................................")
-//
-//                        let bodyyy = rep.http.body
-//                        if let data = bodyyy.data{
-//                            var bodyString  = String(data: data, encoding: String.Encoding.utf8) ?? ""
-//                            if bodyString.count <= 0 {
-//                                let cfEnc = CFStringEncodings.GB_18030_2000
-//                                let enc = CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(cfEnc.rawValue))
-//                                //                    let str = String(data: data!, encoding: String.Encoding(rawValue: enc))
-//                                bodyString  = String(data: data, encoding: String.Encoding.init(rawValue: enc)) ?? ""
-//                            }
-//                            //                (https://\\w+.jd.com/[\\w/]+.html)|
-//                            let goodsPattern = "(\\w+.jd.com[\\w/\\\\]*.html)|(https://\\w+.jd.com/[\\w/]*.html)"//有的链接被转义了,\\\\是匹配转义字符
-//                            //如 : item.jd.com\/22283934451.html
-//                            let reg = try? NSRegularExpression(pattern:goodsPattern, options: [NSRegularExpression.Options.allowCommentsAndWhitespace,NSRegularExpression.Options.caseInsensitive])
-//                            let arr = reg?.matches(in: bodyString, options: NSRegularExpression.MatchingOptions.init(rawValue: 0), range: NSMakeRange(0, bodyString.count))
-//                            for i in arr ?? []{
-//                                var uurl = NSString(string: bodyString).substring(with:
-//                                    i.range)
-//                                uurl = uurl.replacingOccurrences(of: "\\", with: "")
-//                                if !(uurl.hasPrefix("http")){
-//                                    uurl = "https://" + uurl
-//                                }
-//                                targetUrls.insert(uurl)
-//                            }
-//                        }
-//
-//                        let urlssData = (try? JSONEncoder().encode(Array(targetUrls))) ?? Data()
-//                        resp = Response(http: HTTPResponse(status: HTTPResponseStatus.ok, body:  HTTPBody(data: urlssData)), using: req)
-//                        return resp
-//                    })
-
-//                }
-//                print("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
-//                print(targetUrls.count)
-//                print(targetUrls)
-//            let urlssData = (try? JSONEncoder().encode(Array(targetUrls))) ?? Data()
-//            return  Response(http: HTTPResponse(status: HTTPResponseStatus.ok, body:  HTTPBody(data: urlssData)), using: req)
-////            return try Array(targetUrls).encode(for: req)
-//        })
-//        let id = try?   req.parameters.next(Int.self)
-//        return "requested id #\(id ?? 0)"
-        return result2!
+                return finalFutureResponse
+            })
+        return subUrlFutureResponsesWithSubSubUrls!
     }
-    func getJDGoodsUrls1(urls : [String] , _ req : Request) throws   -> EventLoopFuture<Response>{
-        var targetUrls = Set<String>()
-        
-        DispatchQueue.global().async {
-            for url in urls {
-                //wait 不能再事件循环里调用,要再子线程里调用,比如.globall里
-                let result = try? req.client().get(url).wait()//wait() must not be called when on an EventLoop
-                //            result?.map({ (rep) -> (String) in
-                print(".....................................")
-                let bodyyy = result?.http.body
-                if let data = bodyyy?.data{
-                    var bodyString  = String(data: data, encoding: String.Encoding.utf8) ?? ""
-                    if bodyString.count <= 0 {
-                        let cfEnc = CFStringEncodings.GB_18030_2000
-                        let enc = CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(cfEnc.rawValue))
-                        //                    let str = String(data: data!, encoding: String.Encoding(rawValue: enc))
-                        bodyString  = String(data: data, encoding: String.Encoding.init(rawValue: enc)) ?? ""
-                    }
-                    //                (https://\\w+.jd.com/[\\w/]+.html)|
-                    let goodsPattern = "(\\w+.jd.com[\\w/\\\\]*.html)|(https://\\w+.jd.com/[\\w/]*.html)"//有的链接被转义了,\\\\是匹配转义字符
-                    //如 : item.jd.com\/22283934451.html
-                    let reg = try? NSRegularExpression(pattern:goodsPattern, options: [NSRegularExpression.Options.allowCommentsAndWhitespace,NSRegularExpression.Options.caseInsensitive])
-                    let arr = reg?.matches(in: bodyString, options: NSRegularExpression.MatchingOptions.init(rawValue: 0), range: NSMakeRange(0, bodyString.count))
-                    //                    print(url)
-                    
-                    for i in arr ?? []{
-                        //                    print(i.range)
-                        var uurl = NSString(string: bodyString).substring(with:
-                            i.range)
-                        uurl = uurl.replacingOccurrences(of: "\\", with: "")
-                        if !(uurl.hasPrefix("http")){
-                            uurl = "https://" + uurl
-                        }
-                        targetUrls.insert(uurl)
-                        //                        print(uurl)
-                    }
-                    //                    if url == "https://nong.jd.com"{
-                    //                        print(bodyString)
-                    //                    }
-                    //                print(bodyString)//取请求体body
-                }
-                
-                //                return "vv"
-                //            })
-            }
-            print("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
-            print(targetUrls.count)
-            print(targetUrls)
-        }
-        return try Array(targetUrls).encode(for: req)
-        return try "".encode(for: req)
-    }
-    
-    
-    
-    
-    
-    
-    
     
     
     

@@ -75,9 +75,28 @@ class StudyController {
         
         return "success"
     }
+    func testCreateFuture (req : Request)  {
+        let r = req.future("")
+        r.do { (str ) in // vapor版的do/catch
+            
+            }.catch { (erro ) in
+                
+        }
+    }
+    func testFlat(req : Request)  {
+        /// 这个函数的闭包会等待两个Fature 执行完,再调用 , 闭包返回值也为Feture类型
+//        flatMap(EventLoopFuture<A>, EventLoopFuture<B>) { (<#A#>, <#B#>) -> EventLoopFuture<Result> in
+//            <#code#>
+//        }
+        /// 这个函数的闭包会等待两个Fature 执行完,再调用, 闭包返回值也为非Feture类型
+//        map(EventLoopFuture<A>, EventLoopFuture<B>) { (<#A#>, <#B#>) -> (Result) in
+//            <#code#>
+//        }
+    }
 }
 
 extension StudyController{
+    ///重点:flatten
     func getUrlsOfJD1(_ req : Request)  throws   -> EventLoopFuture<Response> {
         let mainUrl = "http://www.jd.com"
         let mainUrlFutureResponseWithHtml = try? req.client().get(mainUrl)
@@ -115,7 +134,7 @@ extension StudyController{
                 var futureResponseArr :[Future<Response>] = []
                 //2 循环遍历urls数组中的每个链接再进行get请求，并将req.client().get(url)的返回值Future<Response>添加到futureResponse数组中。
                 for url in urls {
-                    //wait 不能再事件循环里调用,要再子线程里调用,比如.globall里
+                    //wait 不能再主事件循环里调用,要再子线程里调用,比如.globall里
                     let subFutureResponseStep1 = try? req.client().get(url)
                     let subFutureResponseStep2 = subFutureResponseStep1?.map({ (rep) -> Response in
                         print(".....................................")
